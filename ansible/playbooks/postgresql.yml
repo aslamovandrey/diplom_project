@@ -1,0 +1,54 @@
+# ansible/playbooks/postgresql.yml
+- name: Установка и настройка PostgreSQL master
+  hosts: postgres-master
+  become: yes
+  roles:
+    - postgresql
+
+  post_tasks:
+    - name: Создать пользователя для репликации
+      postgresql_user:
+        name: "{{ replication_user }}"
+        password: "{{ replication_password }}"
+        role_attr_flags: REPLICATION,LOGIN
+      become_user: postgres
+
+    - name: Настроить pg_hba.conf для репликации
+      lineinfile:
+        path: /etc/postgresql/{{ postgresql_version }}/main/pg_hba.conf
+        line: "host replication {{ replication_user }} {{ ansible_default_ipv4.network }}/{{ ansible_default_ipv4.netmask }} md5"
+
+    - name: Перезапустить PostgreSQL
+      systemd:
+        name: postgresql
+        state: restarted
+
+- name: Установка и настройка PostgreSQL replica
+  hosts: postgres-replica
+  become: yes
+  roles:
+    - postgresql
+
+  tasks:
+    - name: Остановить PostgreSQL для настройки реплики
+      systemd:
+        name: postgresql
+        state: stopped
+
+    - name: Очистить данные реплики
+      file:
+        path: /var/lib/postgresql/{{ postgresql_version }}/main
+        state: absent
+
+    - name: Выполнить pg_basebackup
+      shell: |
+        pg_basebackup -h {{ hostvars['postgres-master']['ansible_default_ipv4']['address'] }} \
+          -U {{ replication_user }} \
+          -D /var/lib/postgresql/{{ postgresql_version }}/main \
+          -Fp -Xs -P -R
+      become_user: postgres
+
+    - name: Запустить PostgreSQL
+      systemd:
+        name: postgresql
+        state: started

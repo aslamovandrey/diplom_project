@@ -1,0 +1,33 @@
+# ansible/playbooks/backup.yml
+- name: Настройка резервного копирования
+  hosts: postgres-master
+  become: yes
+  tasks:
+    - name: Установить awscli
+      apt:
+        name: awscli
+        state: present
+
+    - name: Настроить AWS CLI для Object Storage
+      shell: |
+        aws configure set aws_access_key_id {{ access_key }} --profile yc
+        aws configure set aws_secret_access_key {{ secret_key }} --profile yc
+        aws configure set region ru-central1 --profile yc
+
+    - name: Создать скрипт бекапа
+      copy:
+        dest: /usr/local/bin/backup_postgres.sh
+        mode: '0700'
+        content: |
+          #!/bin/bash
+          BACKUP_NAME="postgres_backup_$(date +%Y%m%d_%H%M%S).sql.gz"
+          pg_dumpall -U postgres | gzip > /tmp/$BACKUP_NAME
+          aws --endpoint-url=https://storage.yandexcloud.net --profile yc s3 cp /tmp/$BACKUP_NAME s3://your-backup-bucket/
+          rm -f /tmp/$BACKUP_NAME
+
+    - name: Добавить задачу в cron
+      cron:
+        name: "Ежедневный бекап в 2:00"
+        minute: "0"
+        hour: "2"
+        job: "/usr/local/bin/backup_postgres.sh"
