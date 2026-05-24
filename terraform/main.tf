@@ -19,11 +19,14 @@ provider "yandex" {
 # ============================================
 
 # sg
+resource "yandex_vpc_network" "messenger-network" {
+  name = "messenger-network"
+}
 
 resource "yandex_vpc_security_group" "k8s-main-sg" {
   name       = "k8s-security-group"
   folder_id  = var.folder_id
-  network_id = data.yandex_vpc_network.default.id
+  network_id = yandex_vpc_network.messenger-network.id
 
   # Разрешаем доступ к API Kubernetes (kubectl) только с вашего IP
   ingress {
@@ -72,7 +75,7 @@ resource "yandex_kubernetes_cluster" "k8s-cluster" {
   name        = "messenger-k8s-cluster"
   node_service_account_id = yandex_iam_service_account.node-sa.id
   service_account_id = yandex_iam_service_account.k8s-sa.id
-  network_id = data.yandex_vpc_network.default.id
+  network_id = yandex_vpc_network.messenger-network.id
   folder_id = var.folder_id
 
   master {
@@ -96,7 +99,7 @@ resource "yandex_kubernetes_cluster" "k8s-cluster" {
 resource "yandex_kubernetes_node_group" "k8s-node-group" {
   cluster_id = yandex_kubernetes_cluster.k8s-cluster.id
   name       = "main-node-group"
-  version    = "1.28"
+  version    = "1.33"
 
   instance_template {
     platform_id = "standard-v3"
@@ -128,5 +131,126 @@ resource "yandex_kubernetes_node_group" "k8s-node-group" {
     location {
       zone = var.cloud_zone
     }
+  }
+}
+
+# ============================================
+# DATABASE MODULE
+# ============================================
+
+# Создание подсети
+resource "yandex_vpc_subnet" "default" {
+  name           = "postgres-subnet"
+  zone           = "ru-central1-a"
+  network_id     = yandex_vpc_network.messenger-network.id
+  v4_cidr_blocks = ["192.168.10.0/24"] # Внутренний диапазон IP
+}
+
+# Создание группы безопасности
+resource "yandex_vpc_security_group" "postfres-sg" {
+  name        = "postfres-sg"
+  description = "Security group for postfres"
+  network_id  = yandex_vpc_network.messenger-network.id
+
+  # Правило для SSH
+  ingress {
+    protocol    = "TCP"
+    description = "SSH"
+    port        = 22
+    v4_cidr_blocks = ["185.170.55.225/32"] # В учебных целях открываем всем. В проде - ограничить по IP.
+  }
+
+  # Правило для приложения
+  ingress {
+    protocol    = "TCP"
+    description = "App"
+    port        = 5433
+    v4_cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Разрешаем весь исходящий трафик
+  egress {
+    protocol       = "ANY"
+    description    = "Allow all egress"
+    v4_cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+data "yandex_compute_image" "ubuntu" {
+  family = "ubuntu-2204-lts"
+}
+
+resource "yandex_compute_instance" "postgres-master" {
+  name        = "postgres-master"
+  platform_id = "standard-v3"
+  zone        = var.cloud_zone
+
+  resources {
+    cores  = 2
+    memory = 4
+  }
+
+  boot_disk {
+    initialize_params {
+      image_id = data.yandex_compute_image.ubuntu.id
+      size     = 20
+      type     = "network-ssd"
+    }
+  }
+
+  network_interface {
+    subnet_id          = yandex_vpc_subnet.default.id
+    #nat       = false # В приватной сети без публичного IP
+    nat        = true # Публичный IP
+  }
+
+  metadata = {
+    user-data = <<-EOF
+      #cloud-config
+      users:
+        - name: andrew
+          groups: sudo
+          shell: /bin/bash
+          sudo: 'ALL=(ALL) NOPASSWD:ALL'
+          ssh_authorized_keys:
+            - "${file("~/.ssh/id_rsa.pub")}"  # Путь к публичному ключу
+    EOF
+  }
+}
+
+resource "yandex_compute_instance" "postgres-replica" { # ... аналогичная конфигурация для replica
+  name        = "postgres-replica"
+  platform_id = "standard-v3"
+  zone        = var.cloud_zone_geo
+
+  resources {
+    cores  = 2
+    memory = 4
+  }
+
+  boot_disk {
+    initialize_params {
+      image_id = data.yandex_compute_image.ubuntu.id
+      size     = 20
+    }
+  }
+
+  network_interface {
+    subnet_id = yandex_vpc_subnet.default.id
+    #nat       = false # В приватной сети без публичного IP
+    nat        = true # Публичный IP
+  }
+
+  metadata = {
+    user-data = <<-EOF
+      #cloud-config
+      users:
+        - name: andrew
+          groups: sudo
+          shell: /bin/bash
+          sudo: 'ALL=(ALL) NOPASSWD:ALL'
+          ssh_authorized_keys:
+            - "${file("~/.ssh/id_rsa.pub")}"  # Путь к публичному ключу
+    EOF
   }
 }

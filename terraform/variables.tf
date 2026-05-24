@@ -19,3 +19,8 @@ variable "cloud_zone" {
   type = string
   default = "ru-central1-a"
 }
+
+variable "cloud_zone_geo" {
+  type = string
+  default = "ru-central1-d"
+}
