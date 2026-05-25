@@ -23,127 +23,20 @@ resource "yandex_vpc_network" "messenger-network" {
   name = "messenger-network"
 }
 
-resource "yandex_vpc_security_group" "k8s-main-sg" {
-  name       = "k8s-security-group"
-  folder_id  = var.folder_id
-  network_id = yandex_vpc_network.messenger-network.id
-
-  # Разрешаем доступ к API Kubernetes (kubectl) только с вашего IP
-  ingress {
-    protocol       = "TCP"
-    description    = "Allow kubectl access from my IP"
-    v4_cidr_blocks = ["185.170.55.225/32"] # Замените на ваш реальный IP
-    port           = 6443
-  }
-  # Разрешаем доступ к API Kubernetes (kubectl) только с вашего IP по 443
-  ingress {
-    protocol       = "TCP"
-    description    = "Allow kubectl access from my IP 443"
-    v4_cidr_blocks = ["185.170.55.225/32"] # Замените на ваш реальный IP
-    port           = 443
-  }
-  # Разрешаем SSH доступ (если нужен)
-  ingress {
-    protocol       = "TCP"
-    description    = "Allow SSH"
-    v4_cidr_blocks = ["185.170.55.225/32"]
-    port           = 22
-  }
-
-  # Обязательное правило для работы внутри кластера (между узлами и мастером)
-  ingress {
-    protocol          = "ANY"
-    description       = "Self-referencing rule for cluster communication"
-    v4_cidr_blocks = ["10.1.0.0/24"]
-#    predefined_target = "self_assign"
-    from_port         = 0
-    to_port           = 65535
-  }
-
-  # Разрешаем весь исходящий трафик (чтобы узлы могли качать обновления/образы)
-  egress {
-    protocol       = "ANY"
-    description    = "Allow all outbound traffic"
-    v4_cidr_blocks = ["0.0.0.0/0"]
-    from_port      = 0
-    to_port        = 65535
-  }
-}
-
-# kuber
-resource "yandex_kubernetes_cluster" "k8s-cluster" {
-  name        = "messenger-k8s-cluster"
-  node_service_account_id = yandex_iam_service_account.node-sa.id
-  service_account_id = yandex_iam_service_account.k8s-sa.id
-  network_id = yandex_vpc_network.messenger-network.id
-  folder_id = var.folder_id
-
-  master {
-    version = "1.33"
-    public_ip = true
-    zonal {
-      zone      = yandex_vpc_subnet.k8s-subnet.zone
-      subnet_id = yandex_vpc_subnet.k8s-subnet.id
-    }
-    # ПРИВЯЗКА ГРУППЫ БЕЗОПАСНОСТИ
-    security_group_ids = [yandex_vpc_security_group.k8s-main-sg.id]
-  }
-
-  depends_on = [
-    yandex_resourcemanager_folder_iam_member.k8s-agent,
-    yandex_resourcemanager_folder_iam_member.vpc-admin
-  ]
-}
-
-# node-group 
-resource "yandex_kubernetes_node_group" "k8s-node-group" {
-  cluster_id = yandex_kubernetes_cluster.k8s-cluster.id
-  name       = "main-node-group"
-  version    = "1.33"
-
-  instance_template {
-    platform_id = "standard-v3"
-    network_interface {
-      nat        = true
-      subnet_ids = [yandex_vpc_subnet.k8s-subnet.id]
-      security_group_ids = [yandex_vpc_security_group.k8s-main-sg.id]
-    }
-
-    resources {
-      cores         = 2
-      memory        = 8
-      core_fraction = 50
-    }
-
-    boot_disk {
-      type = "network-ssd"
-      size = 32
-    }
-  }
-
-  scale_policy {
-    fixed_scale {
-      size = 2
-    }
-  }
-
-  allocation_policy {
-    location {
-      zone = var.cloud_zone
-    }
-  }
-}
-
-# ============================================
-# DATABASE MODULE
-# ============================================
 
 # Создание подсети
-resource "yandex_vpc_subnet" "default" {
-  name           = "postgres-subnet"
+resource "yandex_vpc_subnet" "master-subnet" {
+  name           = "master-subnet"
   zone           = "ru-central1-a"
   network_id     = yandex_vpc_network.messenger-network.id
-  v4_cidr_blocks = ["192.168.10.0/24"] # Внутренний диапазон IP
+  v4_cidr_blocks = ["10.1.0.0/24"] # Внутренний диапазон IP
+}
+
+resource "yandex_vpc_subnet" "replica-subnet" {
+  name           = "replica-subnet"
+  zone           = "ru-central1-d"
+  network_id     = yandex_vpc_network.messenger-network.id
+  v4_cidr_blocks = ["10.2.0.0/24"] # Внутренний диапазон IP
 }
 
 # Создание группы безопасности
@@ -166,6 +59,63 @@ resource "yandex_vpc_security_group" "postfres-sg" {
     description = "App"
     port        = 5433
     v4_cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Правило для Patroni REST API
+  ingress {
+    protocol    = "TCP"
+    description = "Patroni_API"
+    port        = 8008
+    v4_cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Правило для etcd (клиент)
+  ingress {
+    protocol    = "TCP"
+    description = "etcd_c"
+    port        = 2379
+    v4_cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Правило для etcd (peer)
+  ingress {
+    protocol    = "TCP"
+    description = "etcd_p"
+    port        = 2380
+    v4_cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Разрешаем ICMP (ping) для диагностики
+  ingress {
+    protocol          = "ICMP"
+    description       = "Allow ICMP for diagnostics"
+    predefined_target = "self_security_group"  # Это разрешает пинговать друг друга
+  }
+
+  # Разрешаем весь TCP/UDP трафик внутри группы (для PostgreSQL, Patroni API и т.д.)
+  ingress {
+    protocol          = "TCP"
+    description       = "Allow all TCP traffic within the security group"
+    predefined_target = "self_security_group"
+    from_port         = 0
+    to_port           = 65535
+  }
+
+  ingress {
+    protocol          = "UDP"
+    description       = "Allow all UDP traffic within the security group"
+    predefined_target = "self_security_group"
+    from_port         = 0
+    to_port           = 65535
+  }
+
+  # Исходящий трафик (обычно разрешаем весь)
+  egress {
+    protocol       = "ANY"
+    description    = "Allow all outgoing traffic"
+    v4_cidr_blocks = ["0.0.0.0/0"]
+    from_port      = 0
+    to_port        = 65535
   }
 
   # Разрешаем весь исходящий трафик
@@ -199,9 +149,16 @@ resource "yandex_compute_instance" "postgres-master" {
   }
 
   network_interface {
-    subnet_id          = yandex_vpc_subnet.default.id
+    subnet_id          = yandex_vpc_subnet.master-subnet.id
     #nat       = false # В приватной сети без публичного IP
     nat        = true # Публичный IP
+
+    security_group_ids = [
+      yandex_vpc_security_group.postfres-sg.id,
+      # можно добавить несколько групп:
+      # yandex_vpc_security_group.ssh_sg.id,
+      # yandex_vpc_security_group.monitoring_sg.id,
+    ]
   }
 
   metadata = {
@@ -236,9 +193,16 @@ resource "yandex_compute_instance" "postgres-replica" { # ... аналогичн
   }
 
   network_interface {
-    subnet_id = yandex_vpc_subnet.default.id
+    subnet_id = yandex_vpc_subnet.replica-subnet.id
     #nat       = false # В приватной сети без публичного IP
     nat        = true # Публичный IP
+    
+    security_group_ids = [
+      yandex_vpc_security_group.postfres-sg.id,
+      # можно добавить несколько групп:
+      # yandex_vpc_security_group.ssh_sg.id,
+      # yandex_vpc_security_group.monitoring_sg.id,
+    ]
   }
 
   metadata = {

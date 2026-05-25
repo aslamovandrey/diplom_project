@@ -1,0 +1,35 @@
+---
+# PostgreSQL и Patroni параметры
+postgresql_version: 16
+patroni_version: "3.3.10"
+postgresql_data_dir: "/var/lib/postgresql/{{ postgresql_version }}/main"
+postgresql_bin_dir: "/usr/lib/postgresql/{{ postgresql_version }}/bin"
+
+# etcd параметры
+etcd_data_dir: /var/lib/etcd
+
+# Параметры Patroni
+patroni_config_dir: /etc/patroni
+patroni_scope: main_cluster
+patroni_namespace: /patroni/
+patroni_ttl: 30
+patroni_loop_wait: 10
+patroni_retry_timeout: 10
+patroni_maximum_lag_on_failover: 1048576
+
+# Параметры резервного копирования
+backup_enabled: true
+backup_s3_bucket: "your-backup-bucket"
+backup_retention_days: 30
+backup_hour: 2
+backup_minute: 0
+
+# PostgreSQL параметры
+postgresql_max_connections: 200
+postgresql_shared_buffers: 256MB
+postgresql_effective_cache_size: 1GB
+postgresql_maintenance_work_mem: 64MB
+postgresql_wal_level: logical
+postgresql_hot_standby: "on"
+postgresql_max_wal_senders: 10
+postgresql_max_replication_slots: 10

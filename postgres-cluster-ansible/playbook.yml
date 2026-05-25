@@ -1,0 +1,212 @@
+---
+- name: Полное развертывание HA кластера PostgreSQL с Patroni
+  hosts: postgres_cluster
+  gather_facts: yes
+  vars_files:
+    - "{{ vault_file | default('vault.yml') }}"  # Загрузка зашифрованных переменных
+  vars:
+    patroni_config_dir: /etc/patroni
+    postgresql_data_dir: /var/lib/postgresql/{{ postgresql_version }}/main
+    etcd_data_dir: /var/lib/etcd
+
+  # ==================== ПРЕ-ЗАДАЧИ (выполняются до сбора фактов) ====================
+  pre_tasks:
+    - name: Установка pip (raw + shell комбинация)
+      shell: |
+        sudo apt update
+        sudo apt install -y python3 python3-pip
+      args:
+        executable: /bin/bash
+      changed_when: false
+    
+    - name: Установка Python пакетов через shell
+      shell: |
+        sudo pip3 install --upgrade pip
+        sudo pip3 install psycopg2-binary
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Сбор фактов (теперь Python доступен)
+      setup:
+
+  tasks:
+    # ==================== 1. Установка зависимостей ====================
+    - name: 1.1 Установка системных пакетов
+      apt:
+        name:
+          - python3-pip
+          - python3-psycopg2
+          - acl
+          - etcd
+          - curl
+          - wget
+          - gnupg
+          - lsb-release
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: 1.2 Установка PostgreSQL из официального репозитория
+      shell: |
+        curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg
+        echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+        apt-get update
+        apt-get install -y postgresql-{{ postgresql_version }} postgresql-contrib-{{ postgresql_version }}
+      args:
+        creates: /usr/lib/postgresql/{{ postgresql_version }}/bin/postgres
+      register: pg_install
+
+    - name: 1.3 Установка Patroni и WAL-G через pip
+      pip:
+        name:
+          - patroni[etcd]=={{ patroni_version }}
+          - wal-g
+          - psycopg2-binary
+        state: present
+        executable: pip3
+
+    # ==================== 2. Настройка etcd ====================
+    - name: 2.1 Создание директории для etcd
+      file:
+        path: "{{ etcd_data_dir }}"
+        state: directory
+        owner: etcd
+        group: etcd
+        mode: '0750'
+
+    - name: 2.2 Конфигурация etcd
+      template:
+        src: templates/etcd.conf.j2
+        dest: /etc/default/etcd
+        mode: '0644'
+      notify: restart etcd
+
+    - name: 2.3 Запуск etcd
+      systemd:
+        name: etcd
+        state: started
+        enabled: yes
+        daemon_reload: yes
+
+    # ==================== 3. Настройка Patroni ====================
+    - name: 3.1 Создание директории для конфигурации Patroni
+      file:
+        path: "{{ patroni_config_dir }}"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0750'
+
+    - name: 3.2 Копирование инициализирующего скрипта на сервер
+      copy:
+        src: "{{ init_script_path }}"
+        dest: /tmp/init_postgres.sh
+        mode: '0755'
+      when: inventory_hostname == groups['postgres_cluster'][0]
+
+    - name: 3.3 Создание конфигурации Patroni
+      template:
+        src: templates/patroni.yml.j2
+        dest: "{{ patroni_config_dir }}/patroni.yml"
+        owner: postgres
+        group: postgres
+        mode: '0640'
+      notify: restart patroni
+
+    - name: 3.4 Создание systemd сервиса для Patroni
+      copy:
+        dest: /etc/systemd/system/patroni.service
+        content: |
+          [Unit]
+          Description=Patroni PostgreSQL High Availability Controller
+          After=network.target etcd.service
+          Wants=etcd.service
+
+          [Service]
+          Type=simple
+          User=postgres
+          Group=postgres
+          ExecStart=/usr/local/bin/patroni {{ patroni_config_dir }}/patroni.yml
+          KillMode=process
+          TimeoutSec=30
+          Restart=always
+          RestartSec=10
+
+          [Install]
+          WantedBy=multi-user.target
+        mode: '0644'
+      notify:
+        - systemctl daemon-reload
+        - restart patroni
+
+    - name: 3.5 Запуск Patroni
+      systemd:
+        name: patroni
+        state: started
+        enabled: yes
+
+    # ==================== 4. Настройка резервного копирования ====================
+    - name: 4.1 Настройка AWS CLI для WAL-G
+      when: backup_enabled
+      block:
+        - name: Установка AWS CLI
+          pip:
+            name: awscli
+            state: present
+
+        - name: Создание директории для конфигурации WAL-G
+          file:
+            path: /etc/wal-g
+            state: directory
+            mode: '0750'
+
+        - name: Настройка окружения WAL-G
+          template:
+            src: templates/backup.sh.j2
+            dest: /etc/wal-g/backup_env.sh
+            mode: '0640'
+
+    - name: 4.2 Настройка cron для ежедневного полного бэкапа
+      when: backup_enabled and inventory_hostname == groups['postgres_cluster'][0]
+      cron:
+        name: "PostgreSQL full backup to S3"
+        hour: "2"
+        minute: "0"
+        job: "source /etc/wal-g/backup_env.sh && /usr/local/bin/wal-g backup-push {{ postgresql_data_dir }} >> /var/log/wal-g-backup.log 2>&1"
+        state: present
+
+    # ==================== 5. Ожидание готовности кластера ====================
+    - name: 5.1 Ожидание готовности PostgreSQL
+      wait_for:
+        port: 5432
+        host: "{{ node_ip }}"
+        delay: 10
+        timeout: 120
+
+    - name: 5.2 Проверка состояния кластера
+      command: patronictl -c {{ patroni_config_dir }}/patroni.yml list
+      register: patroni_status
+      changed_when: false
+      run_once: true
+
+    - name: 5.3 Отображение статуса кластера
+      debug:
+        msg: "{{ patroni_status.stdout_lines }}"
+      run_once: true
+
+  handlers:
+    - name: restart etcd
+      systemd:
+        name: etcd
+        state: restarted
+        daemon_reload: yes
+
+    - name: restart patroni
+      systemd:
+        name: patroni
+        state: restarted
+        daemon_reload: yes
+
+    - name: systemctl daemon-reload
+      systemd:
+        daemon_reload: yes
