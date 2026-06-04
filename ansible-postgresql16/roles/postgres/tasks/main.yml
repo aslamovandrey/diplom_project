@@ -1,0 +1,198 @@
+---
+###############################################################################
+# Wait apt lock
+###############################################################################
+
+- name: Wait for apt lock
+  shell: |
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+      sleep 5
+    done
+  changed_when: false
+
+###############################################################################
+# Base packages
+###############################################################################
+
+- name: Install required packages
+  apt:
+    name:
+      - curl
+      - wget
+      - gnupg
+      - acl
+      - ca-certificates
+      - python3-pip
+      - python3-psycopg2
+    state: present
+    update_cache: yes
+
+###############################################################################
+# PostgreSQL Repository
+###############################################################################
+
+- name: Create keyrings directory
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Download PostgreSQL repository key
+  get_url:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    dest: /tmp/postgresql.asc
+    mode: "0644"
+
+- name: Convert PostgreSQL key
+  shell: |
+    gpg --dearmor \
+    -o /etc/apt/keyrings/postgresql.gpg \
+    /tmp/postgresql.asc
+  args:
+    creates: /etc/apt/keyrings/postgresql.gpg
+
+- name: Add PostgreSQL repository
+  apt_repository:
+    repo: >-
+      deb [signed-by=/etc/apt/keyrings/postgresql.gpg]
+      http://apt.postgresql.org/pub/repos/apt
+      jammy-pgdg main
+    state: present
+    filename: pgdg
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+
+###############################################################################
+# PostgreSQL Installation
+###############################################################################
+
+- name: Install PostgreSQL 16
+  apt:
+    name:
+      - postgresql-16
+      - postgresql-client-16
+      - postgresql-contrib-16
+      - libpq-dev
+    state: present
+
+###############################################################################
+# PostgreSQL Service
+###############################################################################
+
+- name: Ensure PostgreSQL started
+  service:
+    name: postgresql
+    enabled: true
+    state: started
+
+###############################################################################
+# PostgreSQL Configuration
+###############################################################################
+
+- name: Configure listen_addresses
+  lineinfile:
+    path: /etc/postgresql/16/main/postgresql.conf
+    regexp: "^#?listen_addresses"
+    line: "listen_addresses = '{{ postgres_listen_addresses }}'"
+  notify: restart postgres
+
+- name: Deploy pg_hba.conf
+  template:
+    src: pg_hba.conf.j2
+    dest: /etc/postgresql/16/main/pg_hba.conf
+    owner: postgres
+    group: postgres
+    mode: "0640"
+  notify: restart postgres
+
+- name: Apply PostgreSQL configuration
+  meta: flush_handlers
+
+###############################################################################
+# PostgreSQL Users
+###############################################################################
+
+- name: Set postgres password
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: postgres
+    password: "{{ vault_postgres_password }}"
+    encrypted: true
+
+###############################################################################
+# Database Creation
+###############################################################################
+
+- name: Create application database
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: "{{ postgres_db_name }}"
+    encoding: UTF8
+
+###############################################################################
+# Application User
+###############################################################################
+
+- name: Create application user
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: "{{ postgres_app_user }}"
+    password: "{{ vault_postgres_app_password }}"
+    encrypted: true
+    state: present
+
+###############################################################################
+# Database Grants
+###############################################################################
+
+- name: Grant privileges on database
+  become_user: postgres
+  community.postgresql.postgresql_privs:
+    db: "{{ postgres_db_name }}"
+    role: "{{ postgres_app_user }}"
+    type: database
+    privs: ALL
+
+###############################################################################
+# SQL Initialization
+###############################################################################
+
+- name: Copy initialization SQL
+  copy:
+    src: init.sql
+    dest: /tmp/init.sql
+    mode: "0644"
+
+- name: Check initialization marker
+  stat:
+    path: /var/lib/postgresql/.db_initialized
+  register: db_initialized
+
+- name: Execute initialization SQL
+  become_user: postgres
+  shell: |
+    psql \
+      -v ON_ERROR_STOP=1 \
+      -d {{ postgres_db_name }} \
+      -f /tmp/init.sql
+  when: not db_initialized.stat.exists
+
+- name: Create initialization marker
+  file:
+    path: /var/lib/postgresql/.db_initialized
+    state: touch
+    owner: postgres
+    group: postgres
+    mode: "0600"
+  when: not db_initialized.stat.exists
+
+###############################################################################
+# Cleanup
+###############################################################################
+
+- name: Remove temporary SQL file
+  file:
+    path: /tmp/init.sql
+    state: absent

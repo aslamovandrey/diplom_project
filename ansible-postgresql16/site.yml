@@ -1,0 +1,10 @@
+---
+- hosts: postgres
+
+  become: true
+
+  vars_files:
+    - inventories/production/group_vars/vault.yml
+
+  roles:
+    - postgres

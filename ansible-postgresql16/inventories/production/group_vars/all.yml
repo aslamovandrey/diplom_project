@@ -1,0 +1,11 @@
+postgres_version: 16
+
+postgres_db_name: ajax
+
+postgres_app_user: ajax_user
+
+postgres_listen_addresses: '*'
+
+postgres_allowed_networks:
+
+  - 10.1.0.0/24
