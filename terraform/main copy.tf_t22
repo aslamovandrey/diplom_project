@@ -37,6 +37,12 @@ resource "yandex_vpc_gateway" "nat_gateway_a" {
   shared_egress_gateway {}
 }
 
+resource "yandex_vpc_gateway" "nat_gateway_d" {
+  name = "nat-gateway-zone-d"
+  shared_egress_gateway {}
+}
+
+
 # Таблицы маршрутов для приватных подсетей через NAT шлюзы
 resource "yandex_vpc_route_table" "private_route_a" {
   name       = "private-route-table-zone-a"
@@ -48,6 +54,16 @@ resource "yandex_vpc_route_table" "private_route_a" {
   }
 }
 
+resource "yandex_vpc_route_table" "private_route_d" {
+  name       = "private-route-table-zone-d"
+  network_id = yandex_vpc_network.messenger-network.id
+
+  static_route {
+    destination_prefix = "0.0.0.0/0"
+    gateway_id         = yandex_vpc_gateway.nat_gateway_d.id
+  }
+}
+
 # Привязываем таблицы маршрутов к подсетям
 resource "yandex_vpc_subnet" "master-subnet" {
   name           = "master-subnet"
@@ -55,6 +71,14 @@ resource "yandex_vpc_subnet" "master-subnet" {
   network_id     = yandex_vpc_network.messenger-network.id
   v4_cidr_blocks = ["10.1.0.0/24"]
   route_table_id = yandex_vpc_route_table.private_route_a.id
+}
+
+resource "yandex_vpc_subnet" "replica-subnet" {
+  name           = "replica-subnet"
+  zone           = "ru-central1-d"
+  network_id     = yandex_vpc_network.messenger-network.id
+  v4_cidr_blocks = ["10.2.0.0/24"]
+  route_table_id = yandex_vpc_route_table.private_route_d.id
 }
 
 # ========================
@@ -72,7 +96,7 @@ resource "yandex_vpc_security_group" "postfres-sg" {
     protocol    = "TCP"
     description = "SSH"
     port        = 22
-    v4_cidr_blocks = ["185.170.55.250/32"] # В учебных целях открываем всем. В проде - ограничить по IP.
+    v4_cidr_blocks = ["185.170.55.225/32"] # В учебных целях открываем всем. В проде - ограничить по IP.
   }
 
   # Правило для приложения
@@ -175,6 +199,49 @@ resource "yandex_compute_instance" "postgres-master" {
     subnet_id          = yandex_vpc_subnet.master-subnet.id
     nat       = false # В приватной сети без публичного IP
     ip_address = "10.1.0.11"
+
+    security_group_ids = [
+      yandex_vpc_security_group.postfres-sg.id,
+    ]
+  }
+
+  metadata = {
+    user-data = <<-EOF
+      #cloud-config
+      users:
+        - name: andrew
+          groups: sudo
+          shell: /bin/bash
+          sudo: 'ALL=(ALL) NOPASSWD:ALL'
+          ssh_authorized_keys:
+            - "${file("~/.ssh/id_rsa.pub")}"  # Путь к публичному ключу
+    EOF
+  }
+}
+
+resource "yandex_compute_instance" "postgres-replica" { # ... аналогичная конфигурация для replica
+  name        = "postgres-replica"
+  platform_id = "standard-v3"
+  zone        = var.cloud_zone_geo
+
+  resources {
+    cores  = 2
+    memory = 4
+    core_fraction = 50
+  }
+
+  boot_disk {
+    initialize_params {
+      image_id = data.yandex_compute_image.ubuntu.id
+      size     = 20
+      type     = "network-hdd"
+    }
+  }
+
+  network_interface {
+    subnet_id = yandex_vpc_subnet.replica-subnet.id
+    nat       = false # В приватной сети без публичного IP
+    ip_address = "10.2.0.12"
 
     security_group_ids = [
       yandex_vpc_security_group.postfres-sg.id,
