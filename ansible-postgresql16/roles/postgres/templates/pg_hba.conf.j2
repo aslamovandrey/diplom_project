@@ -6,6 +6,10 @@ host    all             all             127.0.0.1/32            scram-sha-256
 
 host    all             all             ::1/128                 scram-sha-256
 
+host    all             all             10.112.0.0/16           md5
+host    all             all             10.4.0.0/24             md5
+host    all             all             10.3.0.0/24             md5
+
 {% for network in postgres_allowed_networks %}
 host    all             all             {{ network }}           scram-sha-256
 {% endfor %}

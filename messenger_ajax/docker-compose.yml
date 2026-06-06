@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  user_service:
+    build: ./user_service
+    ports:
+      - "5001:5001"
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgresql://messenger:messenger123@postgres/messenger_db
+    networks:
+      - messenger_network
+
+  message_service:
+    build: ./message_service
+    ports:
+      - "5002:5002"
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgresql://messenger:messenger123@postgres/messenger_db
+    networks:
+      - messenger_network
+
+  web_client:
+    build: ./web_client
+    ports:
+      - "5000:5000"
+    depends_on:
+      - user_service
+      - message_service
+    environment:
+      USER_SERVICE_URL: http://user_service:5001
+      MESSAGE_SERVICE_URL: http://message_service:5002
+    networks:
+      - messenger_network
+
+networks:
+  messenger_network:
+    driver: bridge
+
+volumes:
+  postgres_data:

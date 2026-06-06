@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: user-service
+
+spec:
+
+  strategy:
+    type: RollingUpdate
+
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+
+  revisionHistoryLimit: 3
+
+  replicas: {{ .Values.userService.replicaCount }}
+
+  selector:
+    matchLabels:
+      app: user-service
+
+  template:
+
+    metadata:
+      labels:
+        app: user-service
+
+    spec:
+
+      containers:
+
+      - name: user-service
+
+        image: "{{ .Values.userService.image.repository }}:{{ .Values.userService.image.tag }}"
+
+        imagePullPolicy: Always
+
+        ports:
+
+        - containerPort: 5001
+
+        env:
+
+        - name: DB_HOST
+          value: "{{ .Values.dbConnect.host }}"
+
+        - name: DB_PORT
+          value: "{{ .Values.dbConnect.port }}"
+
+        - name: DB_NAME
+          value: "{{ .Values.dbConnect.dbName }}"
+
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: "{{ .Values.postgresSecret.name }}"
+              key: DB_USER
+
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: "{{ .Values.postgresSecret.name }}"
+              key: DB_PASSWORD

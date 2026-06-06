@@ -11,6 +11,11 @@ variable "sa_id" {
   default = "ajetkfecfttsqkhc02n9"
 }
 
+variable "node_service_account_id" {
+  type    = string
+  default = "aje7kqjn1605lsrbcda9"
+}
+
 variable "sa_key_file" {
   type = string
 }

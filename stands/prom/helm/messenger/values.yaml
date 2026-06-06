@@ -1,0 +1,44 @@
+namespace: messenger-ajax
+
+userService:
+  replicaCount: 1
+  image:
+    repository: cr.yandex/crpptbfa7s6gcd28ucld/user-service
+    tag: "1.1"
+  service:
+    port: 80
+    targetPort: 5001
+
+messageService:
+  replicaCount: 1
+  image:
+    repository: cr.yandex/crpptbfa7s6gcd28ucld/message-service
+    tag: "1.1"
+  service:
+    port: 80
+    targetPort: 5002
+
+webClient:
+  replicaCount: 1
+  image:
+    repository: cr.yandex/crpptbfa7s6gcd28ucld/web-client
+    tag: "1.1"
+  service:
+    port: 80
+    targetPort: 5000
+  env:
+    USER_SERVICE_URL: http://user-service
+    MESSAGE_SERVICE_URL: http://message-service
+
+dbConnect:
+  host: "10.1.0.11"
+  port: "5432"
+  dbName: "ajax"
+
+postgresSecret:
+  name: postgres-secret
+
+ingress:
+  host: ajax.local
+  className: nginx
+  port: 80

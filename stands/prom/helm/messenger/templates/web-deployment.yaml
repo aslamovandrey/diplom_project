@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: web-client
+  namespace: messenger-ajax
+
+spec:
+  strategy:
+    type: RollingUpdate
+
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+
+  revisionHistoryLimit: 3
+
+  replicas: {{ .Values.webClient.replicaCount }}
+
+  selector:
+    matchLabels:
+      app: web-client
+
+  template:
+
+    metadata:
+      labels:
+        app: web-client
+
+    spec:
+
+      containers:
+
+      - name: web-client
+
+        image: "{{ .Values.webClient.image.repository }}:{{ .Values.webClient.image.tag }}"
+
+        imagePullPolicy: Always
+
+        ports:
+
+        - containerPort: 5000
+
+        env:
+
+        - name: USER_SERVICE_URL
+          value: "{{ .Values.webClient.env.USER_SERVICE_URL }}"
+
+        - name: MESSAGE_SERVICE_URL
+          value: "{{ .Values.webClient.env.MESSAGE_SERVICE_URL }}"

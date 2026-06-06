@@ -14,10 +14,6 @@ provider "yandex" {
   service_account_key_file = var.sa_key_file
 }
 
-# ============================================
-# KUBERNETES CLUSTER MODULE
-# ============================================
-
 # Облачная сеть
 resource "yandex_vpc_network" "messenger-network" {
   name = "messenger-network"
@@ -79,8 +75,13 @@ resource "yandex_vpc_security_group" "postfres-sg" {
   ingress {
     protocol    = "TCP"
     description = "App"
-    port        = 5433
-    v4_cidr_blocks = ["0.0.0.0/0"]
+    port        = 5432
+
+    v4_cidr_blocks = [
+      "10.4.0.0/24", # Kubernetes
+      "10.3.0.0/24",
+      "10.112.0.0/16" # CIDR Pod'ов
+  ]
   }
 
   # Правило для Patroni REST API

@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: message-service
+
+spec:
+
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: message-service
+
+  template:
+
+    metadata:
+      labels:
+        app: message-service
+
+    spec:
+
+      containers:
+
+      - name: message-service
+
+        image: cr.yandex/crpptbfa7s6gcd28ucld/message-service:1.1
+
+        ports:
+
+        - containerPort: 5002
+
+        env:
+
+        - name: DB_HOST
+          value: "10.1.0.11"
+
+        - name: DB_PORT
+          value: "5432"
+
+        - name: DB_NAME
+          value: "ajax"
+
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: DB_USER
+
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: DB_PASSWORD

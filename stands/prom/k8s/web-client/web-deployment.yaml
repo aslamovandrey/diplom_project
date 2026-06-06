@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: web-client
+  namespace: messenger-ajax
+
+spec:
+
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: web-client
+
+  template:
+
+    metadata:
+      labels:
+        app: web-client
+
+    spec:
+
+      containers:
+
+      - name: web-client
+
+        image: cr.yandex/crpptbfa7s6gcd28ucld/web-client:1.1
+
+        imagePullPolicy: Always
+
+        ports:
+
+        - containerPort: 5000
+
+        env:
+
+        - name: USER_SERVICE_URL
+          value: "http://user-service"
+
+        - name: MESSAGE_SERVICE_URL
+          value: "http://message-service"

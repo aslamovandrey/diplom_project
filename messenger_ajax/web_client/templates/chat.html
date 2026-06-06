@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Чат - мессенджер ajax</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f2f5;
+            height: 100vh;
+            display: flex;
+        }
+        
+        /* Боковая панель */
+        .sidebar {
+            width: 300px;
+            background: white;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .user-info {
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .user-name {
+            font-weight: bold;
+            color: #333;
+            font-size: 18px;
+        }
+        
+        .user-role {
+            font-size: 12px;
+            color: #666;
+            background: #e9ecef;
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-top: 5px;
+        }
+        
+        .admin-badge {
+            background: #ffc107;
+            color: #333;
+        }
+        
+        .logout-btn {
+            margin-top: 10px;
+            padding: 8px 16px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+        }
+        
+        .users-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        
+        .user-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            cursor: pointer;
+            border-radius: 8px;
+            margin-bottom: 5px;
+            transition: background 0.2s;
+            position: relative;
+        }
+        
+        .user-item:hover {
+            background: #f8f9fa;
+        }
+        
+        .user-item.selected {
+            background: #e3f2fd;
+        }
+        
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #667eea;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 12px;
+        }
+        
+        .user-details {
+            flex: 1;
+        }
+        
+        .user-username {
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .last-message {
+            font-size: 12px;
+            color: #999;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 150px;
+        }
+        
+        .delete-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 11px;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+        
+        /* Основная область чата */
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+        
+        .chat-header {
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+            background: #f8f9fa;
+            font-weight: bold;
+        }
+        
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px clamp(30px, 50%, 500px);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .message {
+            max-width: min(600px, 70%);
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            border-radius: 18px;
+            word-wrap: break-word;
+        }
+        
+        .message.sent {
+            float: right;
+            align-self: flex-end;
+            background: #667eea;
+            color: white;
+        }
+        
+        .message.received {
+            float: left;
+            align-self: flex-start;
+            background: #f0f2f5;
+            color: #333;
+        }
+        
+        .message-time {
+            font-size: 10px;
+            margin-top: 4px;
+            opacity: 0.7;
+            text-align: right;
+        }
+        
+        .input-area {
+            padding: 20px;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .input-area input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 24px;
+            font-size: 14px;
+        }
+        
+        .input-area button {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 24px;
+            cursor: pointer;
+        }
+        
+        .input-area button:hover {
+            background: #5a67d8;
+        }
+        
+        .input-area button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .no-chat-selected {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 18px;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="user-info">
+            <div class="user-name">{{ username }}</div>
+            <div>
+                <span class="user-role {% if role == 'admin' %}admin-badge{% endif %}">
+                    {{ role }}
+                </span>
+            </div>
+            <button class="logout-btn" onclick="logout()">Выйти</button>
+        </div>
+        
+        <div class="users-list" id="usersList">
+            <div class="loading">Загрузка пользователей...</div>
+        </div>
+    </div>
+    
+    <div class="chat-area">
+        <div class="chat-header" id="chatHeader">
+            Выберите собеседника
+        </div>
+        
+        <div class="messages-container" id="messagesContainer">
+            <!-- Сообщения будут здесь -->
+        </div>
+        
+        <div class="input-area">
+            <input type="text" placeholder="Введите сообщение..." id="messageInput" disabled>
+            <button onclick="sendMessage()" id="sendButton" disabled>Отправить</button>
+        </div>
+    </div>
+    
+    <script>
+        // Данные текущего пользователя
+        const currentUserId = '{{ user_id }}';
+        const currentUsername = '{{ username }}';
+        const currentRole = '{{ role }}';
+        
+        let selectedUserId = null;
+        let messagesRefreshInterval = null;
+        
+        // Загрузка списка пользователей
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/users');
+                const users = await response.json();
+                
+                const usersList = document.getElementById('usersList');
+                usersList.innerHTML = '';
+                
+                if (users.length === 0) {
+                    usersList.innerHTML = '<div style="padding: 20px; text-align: center; color: #999;">Нет других пользователей</div>';
+                    return;
+                }
+                
+                // Загружаем последние сообщения для превью
+                const latestResponse = await fetch('/api/latest-messages');
+                const latestMessages = await latestResponse.json();
+                
+                // Создаем карту последних сообщений
+                const latestMap = {};
+                latestMessages.forEach(item => {
+                    latestMap[item.other_user_id] = {
+                        content: item.content,
+                        timestamp: item.timestamp,
+                        is_sent_by_me: item.is_sent_by_me
+                    };
+                });
+                
+                users.forEach(user => {
+                    const userElement = createUserElement(user, latestMap[user.id]);
+                    usersList.appendChild(userElement);
+                });
+            } catch (error) {
+                console.error('Error loading users:', error);
+                document.getElementById('usersList').innerHTML = '<div style="padding: 20px; text-align: center; color: #c33;">Ошибка загрузки</div>';
+            }
+        }
+        
+        function createUserElement(user, lastMessage) {
+            const div = document.createElement('div');
+            div.className = `user-item ${selectedUserId === user.id ? 'selected' : ''}`;
+            div.onclick = () => selectUser(user);
+            
+            // Аватар
+            const avatar = document.createElement('div');
+            avatar.className = 'user-avatar';
+            avatar.textContent = user.username.charAt(0).toUpperCase();
+            
+            // Детали
+            const details = document.createElement('div');
+            details.className = 'user-details';
+            
+            const username = document.createElement('div');
+            username.className = 'user-username';
+            username.textContent = user.username;
+            if (user.role === 'admin') {
+                username.innerHTML += ' 👑';
+            }
+            
+            details.appendChild(username);
+            
+            if (lastMessage) {
+                const lastMsgDiv = document.createElement('div');
+                lastMsgDiv.className = 'last-message';
+                lastMsgDiv.textContent = (lastMessage.is_sent_by_me ? 'Вы: ' : '') + lastMessage.content;
+                details.appendChild(lastMsgDiv);
+            }
+            
+            div.appendChild(avatar);
+            div.appendChild(details);
+            
+            // Кнопка удаления для админа
+            if (currentRole === 'admin' && user.username !== 'admin') {
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.textContent = '×';
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deleteUser(user.id);
+                };
+                div.appendChild(deleteBtn);
+            }
+            
+            return div;
+        }
+        
+        // Выбор пользователя для чата
+        function selectUser(user) {
+            selectedUserId = user.id;
+            document.getElementById('chatHeader').textContent = `Чат с ${user.username}`;
+            document.getElementById('messageInput').disabled = false;
+            document.getElementById('sendButton').disabled = false;
+            
+            loadMessages(user.id);
+            loadUsers(); // Обновляем выделение в списке
+            
+            // Начинаем периодическое обновление сообщений
+            if (messagesRefreshInterval) {
+                clearInterval(messagesRefreshInterval);
+            }
+            messagesRefreshInterval = setInterval(() => {
+                if (selectedUserId) {
+                    loadMessages(selectedUserId, false); // Не прокручиваем при автообновлении
+                }
+            }, 3000);
+        }
+        
+        // Загрузка сообщений
+        async function loadMessages(otherUserId, scrollToBottom = true) {
+            try {
+                const response = await fetch(`/api/messages/${otherUserId}`);
+                const messages = await response.json();
+                
+                const container = document.getElementById('messagesContainer');
+                
+                // Сохраняем позицию прокрутки
+                const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
+                
+                container.innerHTML = '';
+                
+                if (messages.length === 0) {
+                    container.innerHTML = '<div style="text-align: center; color: #999; margin-top: 50px;">Нет сообщений. Напишите что-нибудь!</div>';
+                    return;
+                }
+                
+                messages.forEach(message => displayMessage(message));
+                
+                // Прокручиваем вниз если нужно
+                if (scrollToBottom || wasAtBottom) {
+                    container.scrollTop = container.scrollHeight;
+                }
+            } catch (error) {
+                console.error('Error loading messages:', error);
+            }
+        }
+        
+        // Отображение сообщения
+        function displayMessage(message) {
+            const container = document.getElementById('messagesContainer');
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${message.sender_id == currentUserId ? 'sent' : 'received'}`;
+            
+            // console.log('my debug m: ',`message ${message.sender_id == currentUserId ? 'sent' : 'received'}`);
+            
+            const content = document.createElement('div');
+            content.textContent = message.content;
+            
+            const time = document.createElement('div');
+            time.className = 'message-time';
+            const date = new Date(message.timestamp);
+            time.textContent = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            messageDiv.appendChild(content);
+            messageDiv.appendChild(time);
+            
+            container.appendChild(messageDiv);
+        }
+        
+        // Отправка сообщения
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const content = input.value.trim();
+            
+            if (!content || !selectedUserId) return;
+            
+            try {
+                const response = await fetch('/api/messages', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        receiver_id: selectedUserId,
+                        content: content
+                    })
+                });
+                
+                if (response.ok) {
+                    const message = await response.json();
+                    displayMessage(message);
+                    input.value = '';
+                    
+                    // Прокручиваем вниз
+                    const container = document.getElementById('messagesContainer');
+                    container.scrollTop = container.scrollHeight;
+                    
+                    // Обновляем список пользователей (для последнего сообщения)
+                    loadUsers();
+                }
+            } catch (error) {
+                console.error('Error sending message:', error);
+                alert('Ошибка при отправке сообщения');
+            }
+        }
+        
+        // Удаление пользователя (для админа)
+        async function deleteUser(userId) {
+            if (!confirm('Вы уверены, что хотите удалить этого пользователя? Все его сообщения будут удалены.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/users/${userId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    if (selectedUserId === userId) {
+                        selectedUserId = null;
+                        document.getElementById('chatHeader').textContent = 'Выберите собеседника';
+                        document.getElementById('messageInput').disabled = true;
+                        document.getElementById('sendButton').disabled = true;
+                        document.getElementById('messagesContainer').innerHTML = '';
+                    }
+                    loadUsers();
+                } else {
+                    alert('Ошибка при удалении пользователя');
+                }
+            } catch (error) {
+                console.error('Error deleting user:', error);
+                alert('Ошибка при удалении пользователя');
+            }
+        }
+        
+        // Обработка нажатия Enter
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+        
+        // Выход
+        function logout() {
+            window.location.href = '/logout';
+        }
+        
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', () => {
+            loadUsers();
+            
+            // Обработчик клавиш
+            document.getElementById('messageInput').addEventListener('keypress', handleKeyPress);
+            
+            // Очищаем интервал при уходе со страницы
+            window.addEventListener('beforeunload', () => {
+                if (messagesRefreshInterval) {
+                    clearInterval(messagesRefreshInterval);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: message-service
+
+spec:
+  strategy:
+    type: RollingUpdate
+
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+
+  revisionHistoryLimit: 3
+
+  replicas: {{ .Values.messageService.replicaCount }}
+
+  selector:
+    matchLabels:
+      app: message-service
+
+  template:
+
+    metadata:
+      labels:
+        app: message-service
+
+    spec:
+
+      containers:
+
+      - name: message-service
+
+        image: "{{ .Values.messageService.image.repository }}:{{ .Values.messageService.image.tag }}"
+
+        imagePullPolicy: Always
+
+        ports:
+
+        - containerPort: 5002
+
+        env:
+
+        - name: DB_HOST
+          value: "{{ .Values.dbConnect.host }}"
+
+        - name: DB_PORT
+          value: "{{ .Values.dbConnect.port }}"
+
+        - name: DB_NAME
+          value: "{{ .Values.dbConnect.dbName }}"
+
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: "{{ .Values.postgresSecret.name }}"
+              key: DB_USER
+
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: "{{ .Values.postgresSecret.name }}"
+              key: DB_PASSWORD

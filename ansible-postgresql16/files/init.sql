@@ -27,3 +27,10 @@ ON CONFLICT (username) DO NOTHING;
 
 INSERT INTO ajax.users (username, role) VALUES ('user2', 'user')
 ON CONFLICT (username) DO NOTHING;
+
+ALTER USER ajax_user SET search_path TO ajax, public;
+ALTER ROLE ajax_user SET search_path TO ajax, public;
+
+GRANT USAGE ON SCHEMA ajax TO ajax_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ajax TO ajax_user;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ajax TO ajax_user;
