@@ -48,4 +48,7 @@ RUN ln -s /opt/yc/bin/yc /usr/local/bin/yc
 RUN groupadd -g ${DOCKER_GID} dockerhost && \
     usermod -aG dockerhost jenkins
 
+RUN mkdir -p /usr/local/yandex-cloud/bin && \
+    ln -s /usr/local/bin/yc /usr/local/yandex-cloud/bin/yc
+
 USER jenkins

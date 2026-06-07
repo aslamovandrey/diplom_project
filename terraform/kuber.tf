@@ -23,7 +23,10 @@ resource "yandex_vpc_security_group" "k8s-main-sg" {
   ingress {
     protocol       = "TCP"
     port           = 6443
-    v4_cidr_blocks = ["185.170.55.250/32"]
+    v4_cidr_blocks = [
+      "185.170.55.250/32",
+      "/32"
+      ]
   }
 
   ingress {

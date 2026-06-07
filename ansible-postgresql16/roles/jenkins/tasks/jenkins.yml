@@ -54,4 +54,6 @@
       -p 50000:50000 \
       -v /opt/jenkins_home:/var/jenkins_home \
       -v /var/run/docker.sock:/var/run/docker.sock \
+      -v /home/andrew/.kube:/var/jenkins_home/.kube:ro \
+      -v /home/andrew/.config/yandex-cloud:/var/jenkins_home/.config/yandex-cloud:ro \
       custom-jenkins:latest
