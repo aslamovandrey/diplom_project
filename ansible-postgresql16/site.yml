@@ -7,9 +7,9 @@
   roles:
     - postgres
 
-- name: Jenkins server
-  hosts: jenkins
-  become: true
+# - name: Jenkins server
+#   hosts: jenkins
+#   become: true
 
-  roles:
-    - jenkins
+#   roles:
+#     - jenkins

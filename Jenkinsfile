@@ -9,7 +9,7 @@ pipeline {
 
                 withCredentials([
                     file(
-                        credentialsId: 'kube_config',
+                        credentialsId: 'kubeconfig',
                         variable: 'KUBECONFIG'
                     )
                 ]) {
