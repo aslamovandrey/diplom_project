@@ -1,0 +1,13 @@
+---
+- name: Install yc CLI
+  shell: |
+    curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh \
+    | bash -s -- -i /usr/local/yandex-cloud -n
+  args:
+    creates: /usr/local/yandex-cloud/bin/yc
+
+- name: Create yc symlink
+  file:
+    src: /usr/local/yandex-cloud/bin/yc
+    dest: /usr/local/bin/yc
+    state: link

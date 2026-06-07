@@ -63,6 +63,14 @@ resource "yandex_vpc_security_group" "postfres-sg" {
   description = "Security group for postfres"
   network_id  = yandex_vpc_network.messenger-network.id
 
+  # Правило для Jenkins
+  ingress {
+    protocol    = "TCP"
+    description = "Jenkins"
+    port        = 8080
+    v4_cidr_blocks = ["185.170.55.250/32"] # В учебных целях открываем всем. В проде - ограничить по IP.
+  }
+
   # Правило для SSH
   ingress {
     protocol    = "TCP"

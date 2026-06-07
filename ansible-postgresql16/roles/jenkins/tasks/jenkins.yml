@@ -1,0 +1,57 @@
+---
+- name: Get Docker group ID
+  shell: "getent group docker | cut -d: -f3"
+  register: docker_gid
+  changed_when: false
+
+- name: Create Jenkins home directory
+  file:
+    path: /opt/jenkins_home
+    state: directory
+    owner: "1000"
+    group: "1000"
+    mode: "0755"
+
+- name: Create Jenkins build directory
+  file:
+    path: /opt/jenkins
+    state: directory
+    mode: "0755"
+
+- name: Copy Jenkins Dockerfile
+  copy:
+    src: Dockerfile
+    dest: /opt/jenkins/Dockerfile
+
+- name: Build custom Jenkins image
+  shell: |
+    docker build \
+      --build-arg DOCKER_GID={{ docker_gid.stdout }} \
+      -t custom-jenkins:latest \
+      /opt/jenkins
+
+- name: Check if Jenkins container exists
+  shell: docker ps -a --filter "name=^jenkins$" --format "{{'{{'}}.Names{{'}}'}}"
+  register: jenkins_container
+  changed_when: false
+
+- name: Stop old Jenkins container
+  shell: docker stop jenkins
+  when: jenkins_container.stdout == "jenkins"
+  ignore_errors: true
+
+- name: Remove old Jenkins container
+  shell: docker rm jenkins
+  when: jenkins_container.stdout == "jenkins"
+  ignore_errors: true
+
+- name: Run Jenkins container
+  shell: |
+    docker run -d \
+      --name jenkins \
+      --restart unless-stopped \
+      -p 8080:8080 \
+      -p 50000:50000 \
+      -v /opt/jenkins_home:/var/jenkins_home \
+      -v /var/run/docker.sock:/var/run/docker.sock \
+      custom-jenkins:latest

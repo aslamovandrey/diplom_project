@@ -1,0 +1,4 @@
+---
+jenkins_home: /opt/jenkins_home
+jenkins_image: jenkins/jenkins:lts-jdk21
+kubectl_version: v1.33.0

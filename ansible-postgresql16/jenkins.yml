@@ -1,0 +1,7 @@
+---
+- name: Configure Jenkins VM
+  hosts: jenkins
+  become: true
+
+  roles:
+    - jenkins
