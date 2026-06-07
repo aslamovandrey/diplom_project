@@ -18,6 +18,17 @@ pipeline {
             }
         }
 
+        stage('Registry Login') {
+            steps {
+                sh '''
+                docker login \
+                --username iam \
+                --password $(yc iam create-token) \
+                cr.yandex
+                '''
+             }
+        }
+
         stage('Build user_service') {
             steps {
                 sh """
