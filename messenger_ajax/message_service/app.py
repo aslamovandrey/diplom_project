@@ -3,7 +3,7 @@ from flask_cors import CORS
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)
@@ -17,15 +17,6 @@ def get_db_connection():
         password=os.environ.get("DB_PASSWORD")
     )
     return conn
-
-SERVICE_NAME = "message-service"
-
-def log(message):
-    print(json.dumps({
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "service": SERVICE_NAME,
-        "message": message
-    }))
 
 # Получить все сообщения между двумя пользователями
 @app.route('/api/messages', methods=['GET'])
@@ -82,7 +73,7 @@ def send_message():
         message = cur.fetchone()
         conn.commit()
         
-        log("Message sent: {sender_id} => {receiver_id}")
+        print(f"Message sent: {sender_id} => {receiver_id}")
         return jsonify(message), 201
     except Exception as e:
         conn.rollback()
