@@ -1,14 +1,13 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
-from prometheus_flask_exporter import PrometheusMetrics
+from prometheus_client import Counter, Histogram, generate_latest
+import time
 
 app = Flask(__name__)
 CORS(app)
-
-metrics = PrometheusMetrics(app)
 
 def get_db_connection():
     conn = psycopg2.connect(
@@ -19,6 +18,33 @@ def get_db_connection():
         password=os.environ.get("DB_PASSWORD")
     )
     return conn
+
+REQUEST_COUNT = Counter(
+    "message_service_requests_total",
+    "Total HTTP requests"
+)
+
+REQUEST_LATENCY = Histogram(
+    "message_service_request_duration_seconds",
+    "Request latency"
+)
+
+@app.before_request
+def before_request():
+    request.start_time = time.time()
+
+@app.after_request
+def after_request(response):
+    REQUEST_COUNT.inc()
+    REQUEST_LATENCY.observe(time.time() - request.start_time)
+    return response
+
+@app.route("/metrics")
+def metrics():
+    return Response(
+        generate_latest(),
+        mimetype="text/plain"
+    )
 
 # Получить всех пользователей
 @app.route('/api/users', methods=['GET'])

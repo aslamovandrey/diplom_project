@@ -1,12 +1,38 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
-from prometheus_flask_exporter import PrometheusMetrics
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response
 import requests
 import os
+from prometheus_client import Counter, Histogram, generate_latest
+import time
 
 app = Flask(__name__)
 app.secret_key = 'simple-messenger-secret-key'
 
-metrics = PrometheusMetrics(app)
+REQUEST_COUNT = Counter(
+    "message_service_requests_total",
+    "Total HTTP requests"
+)
+
+REQUEST_LATENCY = Histogram(
+    "message_service_request_duration_seconds",
+    "Request latency"
+)
+
+@app.before_request
+def before_request():
+    request.start_time = time.time()
+
+@app.after_request
+def after_request(response):
+    REQUEST_COUNT.inc()
+    REQUEST_LATENCY.observe(time.time() - request.start_time)
+    return response
+
+@app.route("/metrics")
+def metrics():
+    return Response(
+        generate_latest(),
+        mimetype="text/plain"
+    )
 
 USER_SERVICE_URL = os.environ.get('USER_SERVICE_URL', 'http://localhost:5001')
 MESSAGE_SERVICE_URL = os.environ.get('MESSAGE_SERVICE_URL', 'http://localhost:5002')
