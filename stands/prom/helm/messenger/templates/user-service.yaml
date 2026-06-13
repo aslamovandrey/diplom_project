@@ -5,6 +5,9 @@ metadata:
   name: user-service
   namespace: "{{ .Values.namespace }}"
 
+  labels:
+    monitoring: enabled
+
 spec:
   selector:
     app: user-service

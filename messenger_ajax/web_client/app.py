@@ -1,9 +1,12 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from prometheus_flask_exporter import PrometheusMetrics
 import requests
 import os
 
 app = Flask(__name__)
 app.secret_key = 'simple-messenger-secret-key'
+
+metrics = PrometheusMetrics(app)
 
 USER_SERVICE_URL = os.environ.get('USER_SERVICE_URL', 'http://localhost:5001')
 MESSAGE_SERVICE_URL = os.environ.get('MESSAGE_SERVICE_URL', 'http://localhost:5002')

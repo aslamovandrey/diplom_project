@@ -3,9 +3,12 @@ from flask_cors import CORS
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
+from prometheus_flask_exporter import PrometheusMetrics
 
 app = Flask(__name__)
 CORS(app)
+
+metrics = PrometheusMetrics(app)
 
 def get_db_connection():
     conn = psycopg2.connect(
