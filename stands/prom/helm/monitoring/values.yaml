@@ -13,7 +13,7 @@ kube-prometheus-stack:
 
   alertmanager:
     service:
-      type: ClusterIP  prometheus:
+      type: ClusterIP
     service:
       type: ClusterIP
 
