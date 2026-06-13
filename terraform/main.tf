@@ -68,7 +68,7 @@ resource "yandex_vpc_security_group" "postfres-sg" {
     protocol    = "TCP"
     description = "Jenkins"
     port        = 8080
-    v4_cidr_blocks = ["185.170.55.250/32"] # В учебных целях открываем всем. В проде - ограничить по IP.
+    v4_cidr_blocks = ["0.0.0.0/0"] # В учебных целях открываем всем. В проде - ограничить по IP.
   }
 
   # Правило для SSH
