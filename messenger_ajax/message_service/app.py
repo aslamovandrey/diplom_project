@@ -73,7 +73,7 @@ def send_message():
         message = cur.fetchone()
         conn.commit()
         
-        print(f" Message sent: {sender_id} => {receiver_id}")
+        print(f"Message sent: {sender_id} => {receiver_id}")
         return jsonify(message), 201
     except Exception as e:
         conn.rollback()
