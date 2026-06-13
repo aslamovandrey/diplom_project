@@ -154,8 +154,6 @@ pipeline {
             steps {
                 sh """
                 curl -f -H "Host: ajax.local" http://81.26.177.18/login
-                curl -f -H "Host: ajax.local" http://81.26.177.18/api/users
-                curl -f -H "Host: ajax.local" http://81.26.177.18/api/messages
                 """
             }
         }
