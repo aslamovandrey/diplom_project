@@ -5,6 +5,9 @@ metadata:
   name: message-service
   namespace: "{{ .Values.namespace }}"
 
+  labels:
+    monitoring: enabled
+
 spec:
   selector:
     app: message-service

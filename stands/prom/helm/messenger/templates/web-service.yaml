@@ -5,6 +5,9 @@ metadata:
   name: web-client
   namespace: "{{ .Values.namespace }}"
 
+  labels:
+    monitoring: enabled
+
 spec:
 
   selector:
