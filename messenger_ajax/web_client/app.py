@@ -8,12 +8,12 @@ app = Flask(__name__)
 app.secret_key = 'simple-messenger-secret-key'
 
 REQUEST_COUNT = Counter(
-    "message_service_requests_total",
+    "wclient_service_requests_total",
     "Total HTTP requests"
 )
 
 REQUEST_LATENCY = Histogram(
-    "message_service_request_duration_seconds",
+    "wclient_service_request_duration_seconds",
     "Request latency"
 )
 

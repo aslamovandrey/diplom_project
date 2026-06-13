@@ -9,11 +9,13 @@ kube-prometheus-stack:
     service:
       type: LoadBalancer
 
-
-
   alertmanager:
     service:
       type: ClusterIP
+    service:
+      type: ClusterIP
+
+  prometheus:
     service:
       type: ClusterIP
 
@@ -32,3 +34,8 @@ kube-prometheus-stack:
           static_configs:
             - targets:
               - "10.1.0.11:9187"
+
+serviceMonitors:
+  - name: message-service
+  - name: user-service
+  - name: web-client

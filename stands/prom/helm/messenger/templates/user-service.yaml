@@ -6,6 +6,7 @@ metadata:
   namespace: "{{ .Values.namespace }}"
 
   labels:
+    app: user-service
     monitoring: enabled
 
 spec:
@@ -13,7 +14,8 @@ spec:
     app: user-service
 
   ports:
-    - port: {{ .Values.userService.service.port }}
+    - name: http
+      port: {{ .Values.userService.service.port }}
       targetPort: {{ .Values.userService.service.targetPort }}
 
   type: ClusterIP

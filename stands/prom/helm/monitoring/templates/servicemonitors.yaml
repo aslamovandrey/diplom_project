@@ -1,0 +1,26 @@
+{{- range .Values.serviceMonitors }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+
+metadata:
+  name: {{ .name }}
+  namespace: monitoring
+  labels:
+    release: monitoring
+
+spec:
+  selector:
+    matchLabels:
+      app: {{ .name }}
+
+  namespaceSelector:
+    matchNames:
+      - messenger-ajax
+
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+
+{{- end }}

@@ -6,6 +6,7 @@ metadata:
   namespace: "{{ .Values.namespace }}"
 
   labels:
+    app: web-client
     monitoring: enabled
 
 spec:
@@ -14,7 +15,8 @@ spec:
     app: web-client
 
   ports:
-    - port: {{ .Values.webClient.service.port }}
+    - name: http
+      port: {{ .Values.webClient.service.port }}
       targetPort: {{ .Values.webClient.service.targetPort }}
 
   type: ClusterIP
