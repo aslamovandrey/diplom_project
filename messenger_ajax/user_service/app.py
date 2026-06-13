@@ -86,6 +86,7 @@ def login():
             conn.commit()
             print(f"Created new user: {user}")
         
+        print(f"Successful user login: {user}")
         return jsonify({'user': user}), 200
     except Exception as e:
         conn.rollback()
