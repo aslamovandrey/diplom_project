@@ -6,6 +6,7 @@ metadata:
   namespace: "{{ .Values.namespace }}"
 
   labels:
+    app: message-service
     monitoring: enabled
 
 spec:
@@ -13,7 +14,8 @@ spec:
     app: message-service
 
   ports:
-    - port: {{ .Values.messageService.service.port }}
+    - name: http
+      port: {{ .Values.messageService.service.port }}
       targetPort: {{ .Values.messageService.service.targetPort }}
 
   type: ClusterIP

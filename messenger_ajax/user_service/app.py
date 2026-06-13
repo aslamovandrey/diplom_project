@@ -20,12 +20,12 @@ def get_db_connection():
     return conn
 
 REQUEST_COUNT = Counter(
-    "message_service_requests_total",
+    "user_service_requests_total",
     "Total HTTP requests"
 )
 
 REQUEST_LATENCY = Histogram(
-    "message_service_request_duration_seconds",
+    "user_service_request_duration_seconds",
     "Request latency"
 )
 
