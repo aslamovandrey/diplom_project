@@ -58,15 +58,16 @@ pipeline {
 
                     }
 
+                    if (changedServices.isEmpty()) {
+                        currentBuild.result = "SUCCESS"
+                        error("No services changed")
+                    }
+
                     println "Changed services:"
                     changedServices.each {
                         println it.name
                     }
 
-                    if (changedServices.isEmpty()) {
-                        currentBuild.result = "SUCCESS"
-                        error("No services changed")
-                    }
                 }
             }
         }
