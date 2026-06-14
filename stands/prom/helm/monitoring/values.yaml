@@ -1,6 +1,15 @@
 kube-prometheus-stack:
 
   grafana:
+
+    persistence:
+      enabled: true
+      type: pvc
+      storageClassName: yc-network-hdd
+      accessModes:
+        - ReadWriteOnce
+      size: 5Gi
+
     admin:
       existingSecret: grafana-admin-secret
       userKey: admin-user
