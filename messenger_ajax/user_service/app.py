@@ -46,7 +46,7 @@ def metrics():
         mimetype="text/plain"
     )
 
-# Получить всех пользователей
+# Получить всех пользователей 
 @app.route('/api/users', methods=['GET'])
 def get_users():
     current_user_id = request.args.get('current_user_id')

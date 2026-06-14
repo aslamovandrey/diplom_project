@@ -79,7 +79,7 @@ def chat():
                          username=session['username'],
                          role=session['role'])
 
-# API для клиента
+# API для клиента 
 @app.route('/api/users')
 def get_users():
     if 'user_id' not in session:
