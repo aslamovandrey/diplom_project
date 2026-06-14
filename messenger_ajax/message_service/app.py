@@ -47,7 +47,7 @@ def metrics():
         mimetype="text/plain"
     )
 
-# Получить все сообщения между двумя пользователями
+# Получить все сообщения между двумя пользователями 
 @app.route('/api/messages', methods=['GET'])
 def get_messages():
     user1_id = request.args.get('user1_id')
